@@ -50,9 +50,29 @@ const App = (() => {
   /* ─────────────────────────────────────────
      AIRTABLE API
   ───────────────────────────────────────── */
+
+  // Extract base ID from full URL or plain ID
+  function parseBaseId(input) {
+    if (!input) return '';
+    const match = input.match(/(app[A-Za-z0-9]{14,})/);
+    return match ? match[1] : input.trim();
+  }
+
   const AT = {
     base: () => `https://api.airtable.com/v0/${state.settings.baseId}`,
     headers: () => ({ 'Authorization': `Bearer ${state.settings.token}`, 'Content-Type': 'application/json' }),
+
+    async _checkRes(res) {
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          msg = body.error?.message || body.error?.type || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+      return res.json();
+    },
 
     async fetchAll(table) {
       let records = [], offset = null;
@@ -61,8 +81,7 @@ const App = (() => {
         url.searchParams.set('pageSize', '100');
         if (offset) url.searchParams.set('offset', offset);
         const res = await fetch(url, { headers: AT.headers() });
-        if (!res.ok) throw new Error(`Airtable error: ${res.status}`);
-        const data = await res.json();
+        const data = await AT._checkRes(res);
         records.push(...data.records);
         offset = data.offset;
       } while (offset);
@@ -75,8 +94,7 @@ const App = (() => {
         headers: AT.headers(),
         body: JSON.stringify({ fields }),
       });
-      if (!res.ok) throw new Error(`Airtable update error: ${res.status}`);
-      return res.json();
+      return AT._checkRes(res);
     },
 
     async createRecord(table, fields) {
@@ -85,13 +103,12 @@ const App = (() => {
         headers: AT.headers(),
         body: JSON.stringify({ fields }),
       });
-      if (!res.ok) throw new Error(`Airtable create error: ${res.status}`);
-      return res.json();
+      return AT._checkRes(res);
     },
 
     async testConnection() {
       const res = await fetch(`${AT.base()}/Cytaty?maxRecords=1`, { headers: AT.headers() });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await AT._checkRes(res);
       return true;
     },
   };
@@ -918,7 +935,7 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
     status.className = 'onboarding__status';
     btn.disabled = true;
 
-    state.settings = { baseId, token, claudeKey, notifTime: '08:00', notifEnabled: false };
+    state.settings = { baseId: parseBaseId(baseId), token: token.trim(), claudeKey: claudeKey.trim(), notifTime: '08:00', notifEnabled: false };
 
     try {
       await AT.testConnection();
