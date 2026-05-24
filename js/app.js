@@ -106,9 +106,23 @@ const App = (() => {
       return AT._checkRes(res);
     },
 
-    async testConnection() {
-      const res = await fetch(`${AT.base()}/Cytaty?maxRecords=1`, { headers: AT.headers() });
-      await AT._checkRes(res);
+    async testConnection(onStep) {
+      // Step 1: token valid?
+      onStep?.('Sprawdzam token…');
+      const r1 = await fetch('https://api.airtable.com/v0/meta/whoami', { headers: AT.headers() });
+      if (!r1.ok) {
+        const b = await r1.json().catch(() => ({}));
+        throw new Error(`Token nieprawidłowy (${r1.status}): ${b.error?.message || b.message || 'sprawdź Access Token'}`);
+      }
+
+      // Step 2: base accessible?
+      onStep?.('Sprawdzam bazę…');
+      const r2 = await fetch(`${AT.base()}/Cytaty?maxRecords=1`, { headers: AT.headers() });
+      if (!r2.ok) {
+        const b = await r2.json().catch(() => ({}));
+        const msg = b.error?.message || b.error?.type || `HTTP ${r2.status}`;
+        throw new Error(`Nie można otworzyć tabeli Cytaty: ${msg}`);
+      }
       return true;
     },
   };
@@ -796,23 +810,22 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
     status.textContent = 'Łączę…';
     status.className = 'settings__status';
 
-    // Use current input values (might not be saved yet)
-    const tempSettings = {
-      baseId: document.getElementById('s-base-id').value.trim(),
+    const saved = { ...state.settings };
+    state.settings = {
+      ...saved,
+      baseId: parseBaseId(document.getElementById('s-base-id').value.trim()),
       token:  document.getElementById('s-token').value.trim(),
     };
-    const saved = state.settings;
-    state.settings = { ...saved, ...tempSettings };
 
     try {
-      await AT.testConnection();
+      await AT.testConnection((step) => { status.textContent = step; });
       status.textContent = '✓ Połączenie działa';
       status.className = 'settings__status success';
     } catch (err) {
       status.textContent = '✗ ' + err.message;
       status.className = 'settings__status error';
     } finally {
-      state.settings = { ...state.settings, ...saved };
+      state.settings = saved;
       btn.disabled = false;
     }
   }
@@ -931,19 +944,22 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
       return;
     }
 
-    status.textContent = 'Sprawdzam połączenie…';
+    status.textContent = 'Łączę…';
     status.className = 'onboarding__status';
     btn.disabled = true;
 
-    state.settings = { baseId: parseBaseId(baseId), token: token.trim(), claudeKey: claudeKey.trim(), notifTime: '08:00', notifEnabled: false };
+    const parsedBaseId = parseBaseId(baseId);
+    console.log('[Onboarding] baseId input:', baseId, '→ parsed:', parsedBaseId);
+    state.settings = { baseId: parsedBaseId, token: token.trim(), claudeKey: claudeKey.trim(), notifTime: '08:00', notifEnabled: false };
 
     try {
-      await AT.testConnection();
+      await AT.testConnection((step) => { status.textContent = step; });
       Storage.set('settings', state.settings);
       Storage.set('onboarded', true);
       await initApp();
     } catch (err) {
-      status.textContent = '✗ Błąd: ' + err.message;
+      console.error('[Onboarding] error:', err);
+      status.textContent = '✗ ' + err.message;
       status.className = 'onboarding__status error';
       btn.disabled = false;
     }
