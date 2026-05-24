@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0e0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Cytaty" />
+  <title>Cytaty</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/app/icon-192.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══════════════════════════════════════
+       ONBOARDING
+  ═══════════════════════════════════════ -->
+  <div id="view-onboarding" class="view view--full" data-view="onboarding">
+    <div class="onboarding__inner">
+      <div class="onboarding__logo">
+        <span class="onboarding__mark">"</span>
+      </div>
+      <h1 class="onboarding__title">Cytaty</h1>
+      <p class="onboarding__sub">Powtarzaj. Zapamiętuj. Rozumiaj.</p>
+
+      <div class="onboarding__fields">
+        <div class="field-group">
+          <label class="field-label">Airtable Base ID</label>
+          <input id="ob-base-id" class="input" type="text" placeholder="appXXXXXXXXXXXXXX" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Airtable Access Token</label>
+          <input id="ob-token" class="input" type="password" placeholder="patXXXXX…" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Claude API Key</label>
+          <input id="ob-claude" class="input" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+
+      <div id="ob-status" class="onboarding__status"></div>
+
+      <button id="ob-submit" class="btn-primary">Połącz i zacznij</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       TODAY — główny ekran
+  ═══════════════════════════════════════ -->
+  <div id="view-today" class="view view--main" data-view="today" data-phase="read">
+
+    <!-- PHASE: read -->
+    <div class="today__read" data-phase-content="read">
+      <div class="today__header">
+        <span id="today-author" class="today__author">—</span>
+        <a id="today-source" class="today__source" href="#" target="_blank" rel="noopener"></a>
+      </div>
+      <div class="today__sep"></div>
+      <div class="today__body">
+        <span class="today__openquote">"</span>
+        <p id="today-quote" class="today__text"></p>
+      </div>
+      <div class="today__feedback-panel">
+        <span class="today__prompt">Nagraj swoją odpowiedź</span>
+        <button id="btn-record" class="btn-record">
+          <img src="icons/mic.svg" alt="Nagraj" class="btn-record__icon" />
+        </button>
+        <button id="btn-postpone" class="btn-ghost">Odłóż na później</button>
+      </div>
+    </div>
+
+    <!-- PHASE: recording -->
+    <div class="today__recording" data-phase-content="recording">
+      <div class="recording__visual">
+        <div class="recording__ring recording__ring--1"></div>
+        <div class="recording__ring recording__ring--2"></div>
+        <div class="recording__ring recording__ring--3"></div>
+        <div class="recording__dot"></div>
+      </div>
+      <p class="recording__label">Nagrywam…</p>
+      <p id="recording-transcript" class="recording__transcript"></p>
+      <button id="btn-stop" class="btn-primary">Gotowe</button>
+    </div>
+
+    <!-- PHASE: analyzing -->
+    <div class="today__analyzing" data-phase-content="analyzing">
+      <div class="spinner"></div>
+      <p class="analyzing__label">Analizuję…</p>
+    </div>
+
+    <!-- PHASE: result -->
+    <div class="today__result" data-phase-content="result">
+      <div class="today__header">
+        <span id="result-author" class="today__author">—</span>
+        <a id="result-source" class="today__source" href="#" target="_blank" rel="noopener"></a>
+      </div>
+      <div class="today__sep"></div>
+      <div class="today__body">
+        <span class="today__openquote">"</span>
+        <p id="result-quote" class="today__text"></p>
+      </div>
+      <div class="result__panel">
+        <div id="result-badge" class="result__badge"></div>
+        <p id="result-msg" class="result__msg"></p>
+        <button id="btn-next" class="btn-primary">Następny →</button>
+      </div>
+    </div>
+
+    <!-- PHASE: empty -->
+    <div class="today__empty" data-phase-content="empty">
+      <span class="empty__mark">"</span>
+      <p class="empty__title">Wszystko na dziś.</p>
+      <p class="empty__sub" id="empty-next"></p>
+      <button class="btn-ghost" onclick="App.navigate('progress')">Zobacz postęp →</button>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PROGRESS — statystyki
+  ═══════════════════════════════════════ -->
+  <div id="view-progress" class="view view--main" data-view="progress">
+    <div class="screen-header">
+      <span class="screen-title">Postęp</span>
+    </div>
+    <div class="progress__body">
+
+      <!-- Seria -->
+      <div class="stat-card stat-card--wide">
+        <div class="stat-card__row">
+          <div>
+            <div id="stat-streak" class="stat-card__number stat-card__number--accent">0</div>
+            <div class="stat-card__label">SERIA DNI</div>
+          </div>
+          <div class="streak-week" id="streak-week"></div>
+        </div>
+        <div id="stat-record" class="stat-card__record"></div>
+      </div>
+
+      <!-- 2×2 grid -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div id="stat-total" class="stat-card__number">0</div>
+          <div class="stat-card__label">CYTATY</div>
+        </div>
+        <div class="stat-card">
+          <div id="stat-mastery" class="stat-card__number">0%</div>
+          <div class="stat-card__label">OPANOWANE</div>
+        </div>
+        <div class="stat-card">
+          <div id="stat-reviews" class="stat-card__number">0</div>
+          <div class="stat-card__label">POWTÓRKI</div>
+        </div>
+        <div class="stat-card">
+          <div id="stat-today-count" class="stat-card__number">0</div>
+          <div class="stat-card__label">DZIŚ</div>
+        </div>
+      </div>
+
+      <!-- Poziomy -->
+      <div class="levels-card">
+        <div class="levels-row">
+          <span class="levels-label">Poziom 1</span>
+          <div class="levels-bar"><div id="bar-lv1" class="levels-fill levels-fill--lv1"></div></div>
+          <span id="count-lv1" class="levels-count">0</span>
+        </div>
+        <div class="levels-row">
+          <span class="levels-label">Poziom 2</span>
+          <div class="levels-bar"><div id="bar-lv2" class="levels-fill levels-fill--lv2"></div></div>
+          <span id="count-lv2" class="levels-count">0</span>
+        </div>
+        <div class="levels-row">
+          <span class="levels-label">Poziom 3</span>
+          <div class="levels-bar"><div id="bar-lv3" class="levels-fill levels-fill--lv3"></div></div>
+          <span id="count-lv3" class="levels-count">0</span>
+        </div>
+      </div>
+
+      <!-- Heatmapa -->
+      <div class="heatmap-card">
+        <div class="section-header">Ostatnie 12 miesięcy</div>
+        <div class="heatmap-months" id="heatmap-months"></div>
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+        <div class="heatmap-legend">
+          <span class="legend-label">Mniej</span>
+          <div class="legend-cell legend-cell--0"></div>
+          <div class="legend-cell legend-cell--1"></div>
+          <div class="legend-cell legend-cell--2"></div>
+          <div class="legend-cell legend-cell--3"></div>
+          <span class="legend-label">Więcej</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ALL — wszystkie cytaty
+  ═══════════════════════════════════════ -->
+  <div id="view-all" class="view view--main" data-view="all">
+    <div class="screen-header">
+      <span class="screen-title">Wszystkie</span>
+    </div>
+    <div class="all__controls">
+      <div class="search-bar">
+        <img src="icons/search.svg" alt="" class="search-bar__icon" />
+        <input id="search-input" class="search-bar__input" type="search" placeholder="Szukaj…" />
+      </div>
+      <div class="filters" id="filter-chips"></div>
+    </div>
+    <div class="all__list" id="quotes-list"></div>
+    <button id="btn-add" class="fab" aria-label="Dodaj cytat">
+      <img src="icons/plus.svg" alt="+" class="fab__icon" />
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SETTINGS
+  ═══════════════════════════════════════ -->
+  <div id="view-settings" class="view view--main" data-view="settings">
+    <div class="screen-header">
+      <span class="screen-title">Ustawienia</span>
+    </div>
+    <div class="settings__body">
+
+      <div class="settings-section">
+        <div class="section-header">Powiadomienia</div>
+        <div class="settings-row">
+          <span class="settings-row__label">Włącz powiadomienia</span>
+          <label class="toggle">
+            <input type="checkbox" id="notif-toggle" />
+            <span class="toggle__track"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row__label">Godzina</span>
+          <input type="time" id="notif-time" class="input input--sm" value="08:00" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-header">Airtable</div>
+        <div class="field-group">
+          <label class="field-label">Base ID</label>
+          <input id="s-base-id" class="input" type="text" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Access Token</label>
+          <input id="s-token" class="input" type="password" autocomplete="off" />
+        </div>
+        <button id="btn-test" class="btn-secondary">Testuj połączenie</button>
+        <div id="test-status" class="settings__status"></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-header">Claude API</div>
+        <div class="field-group">
+          <label class="field-label">API Key</label>
+          <input id="s-claude" class="input" type="password" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="section-header">O aplikacji</div>
+        <div class="settings-row">
+          <span class="settings-row__label">Wersja</span>
+          <span class="settings-row__value">1.0.0</span>
+        </div>
+        <div class="settings-row settings-row--btn" id="btn-ios-install">
+          <span class="settings-row__label">Dodaj do ekranu głównego</span>
+          <img src="icons/arrow-back.svg" alt="→" class="settings-row__arrow" />
+        </div>
+      </div>
+
+      <button id="btn-save-settings" class="btn-primary">Zapisz ustawienia</button>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       OVERLAY: SZCZEGÓŁY CYTATU
+  ═══════════════════════════════════════ -->
+  <div id="overlay-detail" class="overlay" data-overlay="detail">
+    <div class="overlay__bar">
+      <button class="overlay__close" onclick="App.closeOverlay('detail')">
+        <img src="icons/close.svg" alt="Zamknij" />
+      </button>
+      <button class="overlay__action" id="btn-edit-detail">
+        <img src="icons/edit.svg" alt="Edytuj" />
+      </button>
+    </div>
+    <div class="overlay__body">
+      <div class="detail__header">
+        <span id="detail-author" class="today__author"></span>
+        <a id="detail-source" class="today__source" href="#" target="_blank" rel="noopener"></a>
+      </div>
+      <div class="today__sep"></div>
+      <div class="detail__quote-wrap">
+        <span class="today__openquote">"</span>
+        <p id="detail-quote" class="today__text"></p>
+      </div>
+      <div class="detail__meta">
+        <span id="detail-tag" class="chip"></span>
+        <div class="detail__level">
+          <span id="detail-level-dot" class="level-dot"></span>
+          <span id="detail-level-label" class="detail__level-label"></span>
+        </div>
+        <span id="detail-next" class="detail__next"></span>
+      </div>
+      <div id="detail-comment" class="detail__comment"></div>
+      <div class="detail__history" id="detail-history">
+        <div class="section-header">Historia powtórek</div>
+        <div id="detail-history-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       OVERLAY: FORMULARZ CYTATU
+  ═══════════════════════════════════════ -->
+  <div id="overlay-form" class="overlay" data-overlay="form">
+    <div class="overlay__bar">
+      <button class="overlay__close" onclick="App.closeOverlay('form')">
+        <img src="icons/close.svg" alt="Zamknij" />
+      </button>
+      <span id="form-title" class="overlay__title">Nowy cytat</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="overlay__body">
+      <div class="field-group">
+        <label class="field-label">Cytat <span class="required">*</span></label>
+        <textarea id="f-quote" class="input input--textarea" rows="4" placeholder="Treść cytatu…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="field-group field-group--half">
+          <label class="field-label">Autor <span class="required">*</span></label>
+          <input id="f-author" class="input" type="text" placeholder="Imię Nazwisko" />
+        </div>
+        <div class="field-group field-group--half">
+          <label class="field-label">Źródło</label>
+          <input id="f-source" class="input" type="text" placeholder="Tytuł, książka…" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group field-group--half">
+          <label class="field-label">URL</label>
+          <input id="f-url" class="input" type="url" placeholder="https://…" />
+        </div>
+        <div class="field-group field-group--half">
+          <label class="field-label">Tag</label>
+          <input id="f-tag" class="input" type="text" placeholder="filozofia" />
+        </div>
+      </div>
+      <div id="tag-suggestions" class="tag-suggestions"></div>
+      <div class="field-group">
+        <label class="field-label">Komentarz</label>
+        <textarea id="f-comment" class="input input--textarea input--comment" rows="3" placeholder="Twoje przemyślenia…"></textarea>
+      </div>
+      <div id="form-error" class="form-error"></div>
+      <button id="btn-save-quote" class="btn-primary">Zapisz do Airtable</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       NAV BAR
+  ═══════════════════════════════════════ -->
+  <nav id="nav-bar" class="nav-bar">
+    <button class="nav-item" data-nav="today">
+      <img src="icons/today.svg" alt="Dziś" class="nav-item__icon" />
+      <span class="nav-item__label">Dziś</span>
+      <span class="nav-item__dot"></span>
+    </button>
+    <button class="nav-item" data-nav="progress">
+      <img src="icons/stats.svg" alt="Postęp" class="nav-item__icon" />
+      <span class="nav-item__label">Postęp</span>
+      <span class="nav-item__dot"></span>
+    </button>
+    <button class="nav-item" data-nav="all">
+      <img src="icons/list.svg" alt="Wszystkie" class="nav-item__icon" />
+      <span class="nav-item__label">Wszystkie</span>
+      <span class="nav-item__dot"></span>
+    </button>
+    <button class="nav-item" data-nav="settings">
+      <img src="icons/settings.svg" alt="Ustawienia" class="nav-item__icon" />
+      <span class="nav-item__label">Ustawienia</span>
+      <span class="nav-item__dot"></span>
+    </button>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+</div><!-- #app -->
+
+<script src="js/app.js"></script>
+</body>
+</html>
