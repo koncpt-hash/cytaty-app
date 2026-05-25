@@ -213,50 +213,22 @@ const App = (() => {
   }
 
   /* ─────────────────────────────────────────
-     CLAUDE EVALUATION
+     CLAUDE EVALUATION (via server proxy)
   ───────────────────────────────────────── */
   async function evaluateWithClaude(original, transcript) {
-    if (!state.settings.claudeKey) throw new Error('Brak klucza Claude API');
-    const prompt = `Oceniasz odpowiedź ucznia który miał zapamiętać cytat.
-
-ORYGINAŁ:
-"${original}"
-
-ODPOWIEDŹ UCZNIA (transkrypcja głosowa):
-"${transcript}"
-
-Zasady oceny:
-- DOKLADNIE: sens i większość słów zachowane, dopuszczalne drobne różnice w sformułowaniu
-- PARAFRAZA: sens główny zachowany, ale inne słowa lub uproszczenie
-- NIEZGODNE: sens zmieniony, niekompletny lub wypowiedź nie na temat
-
-Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/evaluate', {
       method: 'POST',
-      headers: {
-        'x-api-key': state.settings.claudeKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 10,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ original, transcript }),
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Claude API error ${res.status}`);
+      throw new Error(err.error || `Błąd oceny (${res.status})`);
     }
 
     const data = await res.json();
-    const answer = data.content[0].text.trim().toUpperCase();
-    if (answer.includes('DOKLADNIE')) return 'DOKLADNIE';
-    if (answer.includes('PARAFRAZA')) return 'PARAFRAZA';
-    return 'NIEZGODNE';
+    return data.verdict || 'NIEZGODNE';
   }
 
   /* ─────────────────────────────────────────
@@ -1047,21 +1019,40 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
   }
 
   async function boot() {
-    // Check for magic link setup first
-    const fromHash = trySetupFromHash();
-
-    const settings = Storage.get('settings');
-    const onboarded = Storage.get('onboarded');
-
-    if (!fromHash && (!onboarded || !settings?.baseId || !settings?.token)) {
-      // Show onboarding
-      document.getElementById('view-onboarding').classList.add('view--active');
-      document.getElementById('nav-bar').style.display = 'none';
+    // 1. Try magic link hash
+    if (trySetupFromHash()) {
+      await initApp();
       return;
     }
 
-    if (!fromHash) state.settings = settings;
-    await initApp();
+    // 2. Try server config (Vercel env vars)
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        if (cfg.baseId && cfg.token) {
+          // Merge with any locally saved settings (notif prefs, claudeKey override)
+          const saved = Storage.get('settings') || {};
+          state.settings = { notifTime: '08:00', notifEnabled: false, ...saved, baseId: cfg.baseId, token: cfg.token };
+          await initApp();
+          return;
+        }
+      }
+    } catch { /* offline or no api — fall through */ }
+
+    // 3. Fall back to locally saved settings
+    const settings = Storage.get('settings');
+    const onboarded = Storage.get('onboarded');
+
+    if (onboarded && settings?.baseId && settings?.token) {
+      state.settings = settings;
+      await initApp();
+      return;
+    }
+
+    // 4. Nothing — show onboarding
+    document.getElementById('view-onboarding').classList.add('view--active');
+    document.getElementById('nav-bar').style.display = 'none';
   }
 
   /* ─────────────────────────────────────────
