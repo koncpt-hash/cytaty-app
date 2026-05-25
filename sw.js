@@ -1,4 +1,4 @@
-const CACHE = 'cytaty-v1';
+const CACHE = 'cytaty-v2';
 const ASSETS = [
   '/',
   '/index.html',
