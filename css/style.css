@@ -999,6 +999,12 @@ textarea { resize: none; }
   transform: rotate(180deg);
 }
 
+.settings-hint {
+  font-size: 12px;
+  color: var(--w2);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
 .settings__status {
   font-size: 11px;
   color: var(--w3);

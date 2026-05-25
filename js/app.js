@@ -1003,18 +1003,64 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
     }
   }
 
+  /* ─────────────────────────────────────────
+     SETUP LINK (magic link)
+  ───────────────────────────────────────── */
+  function generateSetupLink() {
+    const s = state.settings;
+    if (!s.baseId || !s.token || !s.claudeKey) {
+      showToast('Zapisz najpierw ustawienia');
+      return;
+    }
+    const payload = btoa(JSON.stringify({ baseId: s.baseId, token: s.token, claudeKey: s.claudeKey }));
+    const url = `${location.origin}${location.pathname}#setup=${payload}`;
+    navigator.clipboard.writeText(url).then(() => {
+      const el = document.getElementById('copy-link-status');
+      if (el) { el.textContent = '✓ Link skopiowany — wyślij go znajomym'; el.className = 'settings__status success'; }
+    }).catch(() => {
+      showToast('Nie udało się skopiować — spróbuj ręcznie');
+    });
+  }
+
+  function trySetupFromHash() {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#setup=')) return false;
+    try {
+      const payload = hash.slice(7); // remove '#setup='
+      const data = JSON.parse(atob(payload));
+      if (!data.baseId || !data.token || !data.claudeKey) return false;
+      state.settings = {
+        baseId: data.baseId,
+        token: data.token,
+        claudeKey: data.claudeKey,
+        notifTime: '08:00',
+        notifEnabled: false,
+      };
+      Storage.set('settings', state.settings);
+      Storage.set('onboarded', true);
+      // Clean hash from URL without reload
+      history.replaceState(null, '', location.pathname);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function boot() {
+    // Check for magic link setup first
+    const fromHash = trySetupFromHash();
+
     const settings = Storage.get('settings');
     const onboarded = Storage.get('onboarded');
 
-    if (!onboarded || !settings?.baseId || !settings?.token) {
+    if (!fromHash && (!onboarded || !settings?.baseId || !settings?.token)) {
       // Show onboarding
       document.getElementById('view-onboarding').classList.add('view--active');
       document.getElementById('nav-bar').style.display = 'none';
       return;
     }
 
-    state.settings = settings;
+    if (!fromHash) state.settings = settings;
     await initApp();
   }
 
@@ -1051,6 +1097,9 @@ Odpowiedz JEDNYM słowem: DOKLADNIE lub PARAFRAZA lub NIEZGODNE`;
 
     // Onboarding
     document.getElementById('ob-submit').addEventListener('click', handleOnboardingSubmit);
+
+    // Setup link
+    document.getElementById('btn-copy-link').addEventListener('click', generateSetupLink);
 
     // iOS install hint
     document.getElementById('btn-ios-install').addEventListener('click', () => {
