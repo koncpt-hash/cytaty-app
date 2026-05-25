@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debug — Cytaty API Test</title>
+<style>
+  body { font-family: monospace; background: #111; color: #eee; padding: 24px; max-width: 600px; }
+  input { width: 100%; padding: 8px; margin: 4px 0 12px; background: #222; border: 1px solid #444; color: #eee; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  button { padding: 10px 20px; background: #c12929; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 4px; font-size: 13px; }
+  pre { background: #1a1a1a; border: 1px solid #333; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 11px; white-space: pre-wrap; word-break: break-all; margin: 8px 0; }
+  .ok { color: #4caf7d; }
+  .err { color: #e05c5c; }
+  label { font-size: 11px; color: #888; }
+  h3 { color: #888; font-size: 12px; margin: 16px 0 4px; border-top: 1px solid #333; padding-top: 12px; }
+</style>
+</head>
+<body>
+<h2>🔍 API Debug</h2>
+
+<label>Airtable Base ID</label>
+<input id="baseId" placeholder="appXXXXXXXXXXXXXX" />
+
+<label>Airtable Access Token</label>
+<input id="token" placeholder="patXXXXX…" type="password" />
+
+<button onclick="runTests()">▶ Uruchom testy</button>
+<button onclick="clearLog()">✕ Wyczyść</button>
+
+<div id="log"></div>
+
+<script>
+function log(msg, cls = '') {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.innerHTML = `<pre class="${cls}">${msg}</pre>`;
+  el.appendChild(d);
+  d.scrollIntoView();
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '';
+}
+
+function parseBaseId(input) {
+  const match = input.match(/(app[A-Za-z0-9]{14,})/);
+  return match ? match[1] : input.trim();
+}
+
+async function runTests() {
+  clearLog();
+  const rawBaseId = document.getElementById('baseId').value.trim();
+  const token = document.getElementById('token').value.trim();
+  const baseId = parseBaseId(rawBaseId);
+
+  log(`Base ID (wejście): ${rawBaseId}`);
+  log(`Base ID (sparsowany): ${baseId}`);
+  log(`Token (pierwsze 20 znaków): ${token.substring(0, 20)}…`);
+
+  // TEST 1: whoami
+  log('\n─── TEST 1: Token (whoami) ───');
+  try {
+    const r = await fetch('https://api.airtable.com/v0/meta/whoami', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const body = await r.text();
+    log(`Status: ${r.status} ${r.statusText}`, r.ok ? 'ok' : 'err');
+    log(`Response: ${body}`, r.ok ? 'ok' : 'err');
+  } catch(e) {
+    log(`BŁĄD SIECI: ${e.message}`, 'err');
+  }
+
+  // TEST 2: meta/bases
+  log('\n─── TEST 2: Lista baz ───');
+  try {
+    const r = await fetch('https://api.airtable.com/v0/meta/bases', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const body = await r.text();
+    log(`Status: ${r.status} ${r.statusText}`, r.ok ? 'ok' : 'err');
+    log(`Response: ${body}`, r.ok ? 'ok' : 'err');
+  } catch(e) {
+    log(`BŁĄD SIECI: ${e.message}`, 'err');
+  }
+
+  // TEST 3: Cytaty table
+  log('\n─── TEST 3: Tabela Cytaty ───');
+  const url = `https://api.airtable.com/v0/${baseId}/Cytaty?maxRecords=1`;
+  log(`URL: ${url}`);
+  try {
+    const r = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    });
+    const body = await r.text();
+    log(`Status: ${r.status} ${r.statusText}`, r.ok ? 'ok' : 'err');
+    log(`Response: ${body}`, r.ok ? 'ok' : 'err');
+  } catch(e) {
+    log(`BŁĄD SIECI: ${e.message}`, 'err');
+  }
+
+  // TEST 4: Historia table
+  log('\n─── TEST 4: Tabela Historia ───');
+  const url2 = `https://api.airtable.com/v0/${baseId}/Historia?maxRecords=1`;
+  log(`URL: ${url2}`);
+  try {
+    const r = await fetch(url2, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    });
+    const body = await r.text();
+    log(`Status: ${r.status} ${r.statusText}`, r.ok ? 'ok' : 'err');
+    log(`Response: ${body}`, r.ok ? 'ok' : 'err');
+  } catch(e) {
+    log(`BŁĄD SIECI: ${e.message}`, 'err');
+  }
+
+  log('\n─── KONIEC TESTÓW ───');
+}
+</script>
+</body>
+</html>
